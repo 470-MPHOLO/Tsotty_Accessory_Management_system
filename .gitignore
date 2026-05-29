@@ -1,0 +1,14 @@
+# Firebase config (if you move it to separate file)
+firebase-config.js
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.backup
+*-backup.html
+
+# IDE
+.vscode/
+.idea/
