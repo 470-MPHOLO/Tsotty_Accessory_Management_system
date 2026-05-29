@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tsotty Accessories | Inventory Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp }
+            from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+            from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAz7b-Nxt6hf8cVzy6TrukZVoDCNoN-IFw",
+            authDomain: "cre8learn-institute.firebaseapp.com",
+            projectId: "cre8learn-institute",
+            storageBucket: "cre8learn-institute.firebasestorage.app",
+            messagingSenderId: "278207843434",
+            appId: "1:278207843434:web:97ee5e0067369cf2080e13"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        window._fb = {
+            db, auth,
+            productsCollection: collection(db, 'tsotty_products'),
+            salesCollection: collection(db, 'tsotty_sales'),
+            addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp,
+            signInWithEmailAndPassword, signOut, onAuthStateChanged
+        };
+    </script>
+
+    <style>
+        :root {
+            --gold: #C9A84C;
+            --gold2: #DAB95E;
+            --light-bg: #F5F7FA;
+            --white: #FFFFFF;
+            --border: #E2E8F0;
+            --text: #1E293B;
+            --muted: #64748B;
+            --green: #10B981;
+            --red: #EF4444;
+            --blue: #3B82F6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: var(--light-bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+        h1, h2, h3 { font-family: 'DM Serif Display', serif; }
+
+        #loginScreen { position: fixed; inset: 0; background: var(--light-bg); display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .login-card { background: var(--white); border: 1px solid var(--border); border-radius: 16px; padding: 48px 40px; width: 100%; max-width: 420px; }
+        .login-card h1 { color: var(--gold); font-size: 2rem; text-align: center; }
+        .login-card p { color: var(--muted); text-align: center; margin-bottom: 32px; }
+        .field { margin-bottom: 18px; }
+        .field label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; }
+        .field input { width: 100%; background: var(--white); border: 1px solid var(--border); padding: 12px 14px; border-radius: 8px; }
+        .btn-gold { width: 100%; background: var(--gold); color: white; font-weight: 700; padding: 13px; border-radius: 8px; border: none; cursor: pointer; }
+        .btn-gold:hover { background: var(--gold2); }
+
+        #mainApp { display: none; }
+        header { background: var(--white); border-bottom: 1px solid var(--border); padding: 18px 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        header h1 { color: var(--gold); font-size: 1.6rem; }
+        .logout-btn { background: transparent; border: 1px solid var(--border); padding: 8px 18px; border-radius: 8px; cursor: pointer; }
+        .logout-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+        main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .stat-card .label { font-size: .78rem; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+        .stat-card .value { font-size: 2rem; font-family: 'DM Serif Display', serif; }
+
+        .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+        .inv-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .inv-card .prod-name { font-size: 1.1rem; font-weight: 600; }
+        .inv-card .prod-price { font-size: .85rem; color: var(--muted); margin-bottom: 12px; }
+        .stock-row { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; }
+        .stock-num { font-size: 2rem; font-family: 'DM Serif Display', serif; }
+        .stock-num.low { color: var(--red); }
+        .stock-num.ok { color: var(--green); }
+        .inv-actions { display: flex; gap: 8px; margin-top: 12px; }
+        
+        .btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; }
+        .btn-primary { background: var(--gold); color: white; }
+        .btn-success { background: var(--green); color: white; }
+        .btn-export { background: #DBEAFE; color: var(--blue); }
+        .btn-ghost { background: var(--white); border: 1px solid var(--border); }
+
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 200; }
+        .modal.active { display: flex; }
+        .modal-box { background: var(--white); border-radius: 16px; width: 100%; max-width: 500px; padding: 32px; }
+        .modal-box h3 { color: var(--gold); margin-bottom: 20px; }
+        .modal-field { margin-bottom: 14px; }
+        .modal-field label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; }
+        .modal-field input, .modal-field select { width: 100%; background: var(--white); border: 1px solid var(--border); padding: 10px 13px; border-radius: 8px; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .modal-actions .btn { flex: 1; }
+        .history-entry { background: #F8FAFC; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+        #loginError { color: var(--red); font-size: .85rem; text-align: center; margin-top: 12px; }
+    </style>
+</head>
+<body>
+
+<div id="loginScreen">
+    <div class="login-card">
+        <h1>Tsotty Accessories</h1>
+        <p>Inventory & Sales Management System</p>
+        <div class="field"><label>Email</label><input type="email" id="loginEmail" placeholder="staff@tsotty.co.ls"></div>
+        <div class="field"><label>Password</label><input type="password" id="loginPassword" placeholder="••••••••"></div>
+        <button class="btn-gold" id="loginBtn">Sign In</button>
+        <div id="loginError"></div>
+    </div>
+</div>
+
+<div id="mainApp">
+    <header>
+        <div><h1>Tsotty Accessories</h1><p>Inventory & Sales Management</p></div>
+        <button class="logout-btn" id="logoutBtn">Sign Out</button>
+    </header>
+
+    <main>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="label">Product Types</div><div class="value" id="i-types">0</div></div>
+            <div class="stat-card"><div class="label">Total Stock</div><div class="value" style="color:var(--gold)" id="i-stock">0</div></div>
+            <div class="stat-card"><div class="label">Total Sold</div><div class="value" style="color:var(--green)" id="i-sold">0</div></div>
+            <div class="stat-card"><div class="label">Low Stock (<3)</div><div class="value" style="color:var(--red)" id="i-low">0</div></div>
+            <div class="stat-card"><div class="label">Revenue</div><div class="value" style="color:var(--blue);font-size:1.5rem" id="i-rev">M0</div></div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-bottom:20px;">
+            <button class="btn btn-primary" id="btnAddProduct">+ Add Product</button>
+            <button class="btn btn-success" id="btnRecordSale">Record Sale</button>
+            <button class="btn btn-export" id="btnExportInventory">Export Excel</button>
+        </div>
+
+        <div id="invGrid" class="inv-grid"><p style="color:var(--muted);padding:40px 0">Loading inventory...</p></div>
+    </main>
+</div>
+
+<div id="addProductModal" class="modal"><div class="modal-box"><h3>Add Product</h3><form id="addProductForm"><div class="modal-field"><label>Product Name</label><input type="text" id="pName" placeholder="e.g. USB-C Cable" required></div><div class="modal-field"><label>Selling Price (M)</label><input type="number" id="pPrice" step="0.01" required></div><div class="modal-field"><label>Initial Stock</label><input type="number" id="pStock" min="0" value="0"></div><div class="modal-actions"><button type="submit" class="btn btn-primary">Add</button><button type="button" id="cancelAddProduct" class="btn btn-ghost">Cancel</button></div></form></div></div>
+
+<div id="recordSaleModal" class="modal"><div class="modal-box"><h3>Record Sale</h3><form id="recordSaleForm"><div class="modal-field"><label>Product</label><select id="saleProduct" required><option value="">— Select —</option></select></div><div id="salePriceHint" style="font-size:.85rem;color:var(--muted);margin:-5px 0 10px;"></div><div class="modal-field"><label>Quantity</label><input type="number" id="saleQty" min="1" value="1" required></div><div class="modal-field"><label>Amount Received (M)</label><input type="number" id="saleAmount" step="0.01"></div><div class="modal-field"><label>Buyer Name</label><input type="text" id="saleBuyer" placeholder="Walk-in customer"></div><div class="modal-field"><label>Notes</label><input type="text" id="saleNotes" placeholder="Optional"></div><div class="modal-actions"><button type="submit" class="btn btn-success">Record</button><button type="button" id="cancelSale" class="btn btn-ghost">Cancel</button></div></form></div></div>
+
+<div id="restockModal" class="modal"><div class="modal-box"><h3>Restock</h3><input type="hidden" id="restockProductId"><p id="restockProductName" style="color:var(--gold);margin-bottom:16px;"></p><div class="modal-field"><label>Units to Add</label><input type="number" id="restockQty" min="1" value="5"></div><div class="modal-actions"><button id="confirmRestock" class="btn btn-primary">Add Stock</button><button id="cancelRestock" class="btn btn-ghost">Cancel</button></div></div></div>
+
+<div id="salesLogModal" class="modal"><div class="modal-box" style="max-width:550px"><div style="display:flex;justify-content:space-between;"><h3 id="salesLogTitle">Sales Log</h3><button id="closeSalesLog" style="background:none;border:none;font-size:1.5rem;">&times;</button></div><div id="salesLogContent"></div></div></div>
+
+<script>
+window.addEventListener('load', () => {
+    function waitForFb(cb) { if (window._fb) return cb(); setTimeout(() => waitForFb(cb), 80); }
+
+    waitForFb(() => {
+        const { db, auth, productsCollection, salesCollection, addDoc, getDocs, doc, updateDoc, query, orderBy, serverTimestamp, signInWithEmailAndPassword, signOut, onAuthStateChanged } = window._fb;
+        let allProducts = [], allSales = [];
+
+        onAuthStateChanged(auth, user => { if (user) { document.getElementById('loginScreen').style.display='none'; document.getElementById('mainApp').style.display='block'; loadAll(); } else { document.getElementById('loginScreen').style.display='flex'; document.getElementById('mainApp').style.display='none'; } });
+
+        document.getElementById('loginBtn').addEventListener('click', async () => { try { await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value.trim(), document.getElementById('loginPassword').value); } catch(e) { document.getElementById('loginError').textContent = 'Invalid credentials'; } });
+        document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+
+        const openModal = id => document.getElementById(id).classList.add('active');
+        const closeModal = id => document.getElementById(id).classList.remove('active');
+        document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); }));
+
+        async function loadAll() { await Promise.all([loadProducts(), loadSales()]); }
+        async function loadProducts() { const snap = await getDocs(query(productsCollection, orderBy('createdAt','desc'))); allProducts = snap.docs.map(d => ({ id: d.id, ...d.data() })); }
+        async function loadSales() { const snap = await getDocs(query(salesCollection, orderBy('createdAt','desc'))); allSales = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderInventory(); }
+
+        function renderInventory() {
+            const low = allProducts.filter(p => (p.stock||0) < 3).length;
+            const totalStock = allProducts.reduce((s,p)=>s+(p.stock||0),0);
+            const totalSold = allSales.reduce((s,x)=>s+(x.qty||1),0);
+            const totalRev = allSales.reduce((s,x)=>s+parseFloat(x.amount||0),0);
+            document.getElementById('i-types').textContent = allProducts.length;
+            document.getElementById('i-stock').textContent = totalStock;
+            document.getElementById('i-sold').textContent = totalSold;
+            document.getElementById('i-low').textContent = low;
+            document.getElementById('i-rev').textContent = 'M'+totalRev.toFixed(2);
+            
+            const grid = document.getElementById('invGrid');
+            if (!allProducts.length) { grid.innerHTML = '<p style="color:var(--muted);padding:40px 0">No products yet. Click "Add Product" to start.</p>'; return; }
+            grid.innerHTML = allProducts.map(p => {
+                const productSales = allSales.filter(s=>s.productId===p.id);
+                const unitsSold = productSales.reduce((s,x)=>s+(x.qty||1),0);
+                const revenue = productSales.reduce((s,x)=>s+parseFloat(x.amount||0),0);
+                return `<div class="inv-card"><div class="prod-name">${p.name}</div><div class="prod-price">Price: M${parseFloat(p.price||0).toFixed(2)}</div><div class="stock-row"><div><div style="font-size:.75rem;color:var(--muted)">IN STOCK</div><div class="stock-num ${(p.stock||0)<3?'low':'ok'}">${p.stock||0}</div></div><div><div style="font-size:.75rem;color:var(--muted);text-align:right">SOLD</div><div style="font-size:1.6rem;font-family:serif;color:var(--green)">${unitsSold}</div></div></div><div style="font-size:.8rem;color:var(--muted);margin:8px 0">Revenue: M${revenue.toFixed(2)}</div>${(p.stock||0)<3?'<div style="font-size:.75rem;color:var(--red);margin-bottom:8px;">⚠ Low stock warning</div>':''}<div class="inv-actions"><button class="btn btn-ghost" onclick="openRestock(\''+p.id+'\')">Restock</button><button class="btn btn-ghost" onclick="viewSalesLog(\''+p.id+'\')">Sales Log</button></div></div>`;
+            }).join('');
+        }
+
+        document.getElementById('btnAddProduct').addEventListener('click', () => openModal('addProductModal'));
+        document.getElementById('cancelAddProduct').addEventListener('click', () => closeModal('addProductModal'));
+        document.getElementById('addProductForm').addEventListener('submit', async e => {
+            e.preventDefault(); const name = document.getElementById('pName').value.trim(); if(!name) return alert('Enter product name');
+            await addDoc(productsCollection, { name, price: parseFloat(document.getElementById('pPrice').value)||0, stock: parseInt(document.getElementById('pStock').value)||0, createdAt: serverTimestamp() });
+            closeModal('addProductModal'); document.getElementById('addProductForm').reset(); await loadProducts(); renderInventory(); alert('Product added.');
+        });
+
+        document.getElementById('btnRecordSale').addEventListener('click', () => { const sel = document.getElementById('saleProduct'); sel.innerHTML = '<option value="">— Select —</option>' + allProducts.map(p=>`<option value="${p.id}" data-price="${p.price}" data-stock="${p.stock}">${p.name} (${p.stock||0} in stock)</option>`).join(''); openModal('recordSaleModal'); });
+        document.getElementById('cancelSale').addEventListener('click', ()=>closeModal('recordSaleModal'));
+        document.getElementById('saleProduct').addEventListener('change', e => { const price = parseFloat(e.target.options[e.target.selectedIndex]?.dataset?.price)||0; document.getElementById('saleAmount').value = price; document.getElementById('salePriceHint').innerHTML = price ? `Unit price: M${price.toFixed(2)}` : ''; });
+        document.getElementById('saleQty').addEventListener('input', () => { const opt = document.getElementById('saleProduct').options[document.getElementById('saleProduct').selectedIndex]; const price = parseFloat(opt?.dataset?.price)||0; const qty = parseInt(document.getElementById('saleQty').value)||1; if(price) document.getElementById('saleAmount').value = (price*qty).toFixed(2); });
+        document.getElementById('recordSaleForm').addEventListener('submit', async e => {
+            e.preventDefault(); const productId = document.getElementById('saleProduct').value; if(!productId) return alert('Select product'); const product = allProducts.find(p=>p.id===productId); const qty = parseInt(document.getElementById('saleQty').value)||1; if(qty > (product?.stock||0)) return alert(`Only ${product?.stock||0} in stock`); const amount = parseFloat(document.getElementById('saleAmount').value)||0;
+            await addDoc(salesCollection, { productId, productName: product.name, qty, amount, buyer: document.getElementById('saleBuyer').value.trim(), notes: document.getElementById('saleNotes').value.trim(), createdAt: serverTimestamp() });
+            await updateDoc(doc(db, 'tsotty_products', productId), { stock: (product.stock||0)-qty });
+            closeModal('recordSaleModal'); document.getElementById('recordSaleForm').reset(); await loadProducts(); await loadSales(); alert('Sale recorded.');
+        });
+
+        window.openRestock = id => { const p = allProducts.find(x=>x.id===id); if(!p) return; document.getElementById('restockProductId').value=id; document.getElementById('restockProductName').textContent=p.name; openModal('restockModal'); };
+        document.getElementById('cancelRestock').addEventListener('click',()=>closeModal('restockModal'));
+        document.getElementById('confirmRestock').addEventListener('click', async () => { const id = document.getElementById('restockProductId').value; const qty = parseInt(document.getElementById('restockQty').value)||0; const p = allProducts.find(x=>x.id===id); await updateDoc(doc(db, 'tsotty_products', id), { stock: (p.stock||0)+qty }); closeModal('restockModal'); await loadProducts(); renderInventory(); alert(`Restocked! New stock: ${(p.stock||0)+qty}`); });
+
+        window.viewSalesLog = id => { const p = allProducts.find(x=>x.id===id); const logs = allSales.filter(s=>s.productId===id); document.getElementById('salesLogTitle').textContent = p.name + ' - Sales'; document.getElementById('salesLogContent').innerHTML = logs.length ? logs.map(s=>`<div class="history-entry"><div class="svc-name">Qty ${s.qty||1} · M${parseFloat(s.amount||0).toFixed(2)}</div><div class="svc-meta" style="font-size:.75rem;color:var(--muted)">${s.buyer||'Walk-in'} · ${s.createdAt?.toDate?.().toLocaleDateString()||'—'}</div></div>`).join('') + `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-weight:700;">Total: M${logs.reduce((a,b)=>a+parseFloat(b.amount||0),0).toFixed(2)} · ${logs.reduce((a,b)=>a+(b.qty||1),0)} units</div>` : '<p style="color:var(--muted);text-align:center;padding:24px">No sales yet</p>'; openModal('salesLogModal'); };
+        document.getElementById('closeSalesLog').addEventListener('click',()=>closeModal('salesLogModal'));
+
+        document.getElementById('btnExportInventory').addEventListener('click', () => { if(!allProducts.length) return alert('No data'); const wb = XLSX.utils.book_new(); const stockRows = [['Product','Price','Stock','Sold','Revenue']]; allProducts.forEach(p => { const ps = allSales.filter(s=>s.productId===p.id); stockRows.push([p.name, p.price, p.stock, ps.reduce((a,b)=>a+(b.qty||1),0), ps.reduce((a,b)=>a+parseFloat(b.amount||0),0).toFixed(2)]); }); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(stockRows), 'Stock'); const saleRows = [['Product','Qty','Amount','Buyer','Date']]; allSales.forEach(s => saleRows.push([s.productName, s.qty, s.amount, s.buyer, s.createdAt?.toDate?.().toLocaleDateString()||''])); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(saleRows), 'Sales'); XLSX.writeFile(wb, `Tsotty_Accessories.xlsx`); });
+    });
+});
+</script>
+</body>
+</html>
